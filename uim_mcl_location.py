@@ -1,10 +1,12 @@
 #!/usr/bin/python
 
 import os
-from os import path
 import glob
 import statistics
 import numpy as np
+import networkx as nx
+from mcl_clustering import networkx_mcl
+from os import path
 from datetime import datetime, timedelta
 from collections import namedtuple
 
@@ -123,38 +125,19 @@ def sim_graph(records, all_macs, sim_threshold):
 
     return vertexes, edges, vectors, bits
 
-def star_cluster(vs, es):
-    degrees = []
-    for v in vs:
-        degree = 0
-        for e in es:
-            if v in e:
-                degree += 1
-        degrees.append((v, degree))
+def mcl_cluster(vs, es):
+    g = nx.Graph()
+    for i in range(len(vs)):
+        g.add_node(i)
+    for n0, n1 in es:
+        g.add_edge(n0, n1)
 
-    degrees = sorted(degrees, key=lambda x:x[1], reverse=True)
-    marked = {}
-    for v in vs:
-        marked[v] = False
-
+    M, clusters = networkx_mcl(g)
     locations = []
-    for v,d in degrees:
-        if marked[v]:
-            continue
-        location = set()
-        location.add(v)
-        for e in es:
-            if e[0] == v:
-                if not marked[e[1]]:
-                    location.add(e[1])
-                    marked[e[1]] = True
-            if e[1] == v:
-                if not marked[e[0]]:
-                    location.add(e[0])
-                    marked[e[0]] = True
-        locations.append(location)
-
+    for _, cluster in clusters.items():
+        locations.append(set(cluster))
     return locations
+
 
 def final_locations(locations, vectors):
     sigs = []
@@ -300,7 +283,7 @@ def classify_user_data(user, sim_threshold, alpha):
     print('Found %d good wifi records' % len(good_records))
     vs, es, vectors, bits = sim_graph(good_records, all_macs, sim_threshold)
     print('Computed similarity graph')
-    candidate_locations = star_cluster(vs, es)
+    candidate_locations = mcl_cluster(vs, es)
     print('Clustered graph into locations')
     locations, sigs = final_locations(candidate_locations, vectors)
     print('Found %d locations' % len(locations))
@@ -320,12 +303,14 @@ if __name__ == '__main__':
     sim_threshold = 0.1
     alpha = timedelta(seconds=60)
 
-    users = os.listdir(os.path.join(DATA_DIR, "uim_exp1_release"))
+
+
+    users = os.listdir(path.join(DATA_DIR, "uim_exp1_release"))
     for user in users:
         print('User: %s' % user)
-        if not path.isdir(os.path.join(DATA_DIR, "uim_exp1_release", user)):
+        if not path.isdir(path.join(DATA_DIR, "uim_exp1_release", user)):
             continue
-        filepath = os.path.join(DATA_DIR, "uim_classified", user)
+        filepath = path.join(DATA_DIR, "uim_mcl", user)
         if path.exists(filepath):
             continue
 
