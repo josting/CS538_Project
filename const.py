@@ -1,0 +1,1 @@
+DATA_DIR = "." # the directory where data can be found
