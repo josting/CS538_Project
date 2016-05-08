@@ -10,7 +10,7 @@ from os import path
 from datetime import datetime, timedelta
 from collections import namedtuple
 
-DATA_DIR = os.getenv('DATA_DIR', r"C:\Users\Jon\Documents\UIUC\CS 538\project\data")
+from const import *
 
 def load_records_from_file(filepath):
     records = []
