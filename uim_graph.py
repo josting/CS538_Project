@@ -39,65 +39,11 @@ def create_graph(records):
     return G
 
 
-def create_edges(records):
-    edges = []
-    all_macs = []
-    for t, macs in records:
-        for (i, mac1) in enumerate(macs):
-            for mac2 in macs[i+1:]:
-                edges.append((mac1,mac2))
-    return edges
-        
-    # pairs = {}
-    # counts = {}
-    # pair = namedtuple('pair', ['j','k'])
-    # all_record_pairs = []
-    # for t, macs in records:
-        # record_pairs = []
-        # for j in range(len(macs)):
-            # if macs[j] not in counts:
-                # counts[macs[j]] = 0
-            # counts[macs[j]] += 1
-            # for k in range(j+1,len(macs)):
-                # p = pair(macs[j], macs[k])
-                # if p not in pairs:
-                    # pairs[p] = 0
-                # pairs[p] += 1
-                # record_pairs.append(p)
-        # all_record_pairs.append(record_pairs)
-    # support = {}
-    # for p, c in pairs.items():
-        # support[p] = float(c) / float(min(counts[p.j], counts[p.k]))
-
-    # ratios = []
-    # for i in range(len(all_record_pairs)):
-        # record_pairs = all_record_pairs[i]
-        # data = [support[p] for p in record_pairs]
-        # if len(data) < 2:
-            # ratios.append((0, records[i]))
-        # else:
-            # mean = statistics.mean(data)
-            # stdev = statistics.stdev(data, xbar=mean)
-            # ratios.append((stdev / mean, records[i]))
-
-    # ratios = sorted(ratios, key=lambda x:x[0])
-
-    # good_records = []
-    # all_macs = set()
-    # for _, record in ratios:
-        # size = len(all_macs)
-        # all_macs |= set(record[1])
-        # '''Only add records that provide new information '''
-        # if len(all_macs) > size:
-            # good_records.append(record)
-
-    # return good_records, all_macs
-
-def draw_wtd_graph(G,clusters=None,showfig=True):
+def draw_wtd_graph(G,title,clusters=None,showfig=True):
     ''' Based on an example by Aric Hagberg (hagberg@lanl.gov)'''
     
     pos=nx.spring_layout(G) # positions for all nodes
-
+    
     # nodes
     if clusters is None:
         nx.draw_networkx_nodes(G,pos,node_size=50)
@@ -117,10 +63,12 @@ def draw_wtd_graph(G,clusters=None,showfig=True):
     # nx.draw_networkx_labels(G,pos,font_size=20,font_family='sans-serif')
 
     plt.axis('off')
+    plt.suptitle(title)
     if showfig:
         plt.show() # display
     else:
-        plt.savefig("weighted_graph.png") # save as png
+        plt.savefig("{}.png".format(title)) # save as png
+        plt.close()
 
 def networkx_mcl(G, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1):
     keys = G.node.keys()
@@ -131,6 +79,64 @@ def networkx_mcl(G, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_
         nodes = [keys[n] for n in nodes]
         clusters[cluster_id] = nodes    
     return M,clusters
+
+def draw_wifi_graph(user):    
+    new_records = load_wifi_records(user)
+    all_wifi_records.extend(new_records)
+    G = create_graph(new_records)
+    M,clusters = networkx_mcl(G, expand_factor = 3, inflate_factor = 2, mult_factor = 2,max_loop = 60)
+    for cluster,macs in clusters.items():
+        for mac in macs:
+            G.node[mac]["cluster"] = cluster
+    draw_wtd_graph(G,user,clusters,0)    
+    
+def draw_wifi_graphs(users):
+    all_wifi_records = []
+    for user in users:
+        new_records = load_wifi_records(user)
+        all_wifi_records.extend(new_records)
+        G = create_graph(new_records)
+        M,clusters = networkx_mcl(G, expand_factor = 3, inflate_factor = 2, mult_factor = 2,max_loop = 60)
+        for cluster,macs in clusters.items():
+            for mac in macs:
+                G.node[mac]["cluster"] = cluster
+        draw_wtd_graph(G,user,clusters,0)
+    
+    # All users
+    G = create_graph(all_wifi_records)
+    M,clusters = networkx_mcl(G, expand_factor = 3, inflate_factor = 2, mult_factor = 2,max_loop = 60)
+    for cluster,macs in clusters.items():
+        for mac in macs:
+            G.node[mac]["cluster"] = cluster
+    draw_wtd_graph(G,"AllUsers",clusters,0)
+
+def create_bt_graph(pairs):
+    edges = [(mac1, mac2, 1) for (mac1,mac2) in pairs]
+    G = nx.Graph()
+    G.add_weighted_edges_from(edges)
+    return G
+    
+def draw_bt_graph(user):
+    #load the bt graph
+    bt_traces = {}
+    for user in users:
+        for ts,pair in load_bt_records2(user):
+            if ts not in bt_traces:
+                bt_traces[ts] = []
+            bt_traces[ts].append(pair)
+    edges = {}
+    trace_timestamps = sorted(bt_traces)
+    for ts in trace_timestamps:
+        f = lambda x: (ts - alpha) <= x and x <= (ts + alpha)
+        x = map(bt_traces.__getitem__,  filter(f, trace_timestamps))
+            
+    all_wifi_records.extend(new_records)
+    G = create_graph(new_records)
+    M,clusters = networkx_mcl(G, expand_factor = 3, inflate_factor = 2, mult_factor = 2,max_loop = 60)
+    for cluster,macs in clusters.items():
+        for mac in macs:
+            G.node[mac]["cluster"] = cluster
+    draw_wtd_graph(G,user,clusters,0)
     
     
 if __name__ == "__main__":
@@ -140,17 +146,37 @@ if __name__ == "__main__":
         if os.path.isdir(path) and fn.startswith("User"):
             users.append(fn)
     #
+    #load the bt graph
+    bt_traces = {}
     for user in users:
-        all_wifi_records = load_wifi_records(user)
-        G = create_graph(all_wifi_records)
-        M,clusters = networkx_mcl(G, expand_factor = 2, inflate_factor = 2, mult_factor = 2,max_loop = 60)
+        for ts,pair in load_bt_records2(user):
+            if ts not in bt_traces:
+                bt_traces[ts] = []
+            bt_traces[ts].append(pair)
+    edges = {}
+    # idx = random.sample(xrange(len(timestamps)), 1500)
+    trace_timestamps = sorted(bt_traces)
+    for ts in trace_timestamps:
+        f = lambda x: (ts - ALPHA) <= x and x <= (ts + ALPHA)
+        pairs = reduce(list.__add__,reduce(list.__add__,map(bt_traces.__getitem__,  filter(f, trace_timestamps))))
+        edges[ts] = pairs
+    graph_orders = [(ts,len(pairs)) for ts,pairs in edges.items()]
+    data = map(lambda x: x[1], graph_order)
+    # stats
+    mean = statistics.mean(data)
+    stdev = statistics.stdev(data, xbar=mean)    
+    max_order = max(data)
+    f = lambda x: (mean - stdev) <= x[1] and x[1] <= (mean + stdev)
+    samples = filter(f, graph_orders)
+    for idx in random.sample(xrange(len(samples)), 5):
+        ts = samples[idx][0]
+        pairs = edges[ts]
+        G = create_bt_graph(pairs)
+        M,clusters = networkx_mcl(G, expand_factor = 3, inflate_factor = 2, mult_factor = 2,max_loop = 60)
         for cluster,macs in clusters.items():
             for mac in macs:
                 G.node[mac]["cluster"] = cluster
-
-        draw_wtd_graph(G,clusters)
-        
-        break
-    
-
-    
+        title = "UIM BT Traces at %s" % ts
+        draw_wtd_graph(G, title,clusters, 1)
+    raise
+    draw_bt_graph(users[0])

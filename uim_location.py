@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from collections import namedtuple
 
-DATA_DIR = os.getenv('DATA_DIR', r"C:\Users\Jon\Documents\UIUC\CS 538\project\data")
+from const import *
 
 def load_records_from_file(filepath):
     records = []
@@ -45,6 +45,17 @@ def load_bt_records(user):
         records.extend(load_records_from_file(f))
     return records
 
+def load_bt_records2(user):
+    pattern = path.join(DATA_DIR, "uim_exp1_release", user, "btlog", "s*")
+    files = glob.glob(pattern)
+    records = []
+    for f in files:
+        fname = os.path.basename(f)
+        user_mac = fname[fname.index('.')+1:]
+        for (ts,macs) in load_records_from_file(f):
+            pairs = [(user_mac,mac) for mac in macs]
+            records.append((ts,pairs))
+    return records
 
 def good_wifi_set(records):
     pairs = {}
@@ -83,7 +94,7 @@ def good_wifi_set(records):
 
     good_records = []
     all_macs = set()
-    for _, record in ratios:
+    for z_score, record in ratios:
         size = len(all_macs)
         all_macs |= set(record[1])
         # Only add records that provide new information
@@ -317,8 +328,7 @@ def classify_user_data(user, sim_threshold, alpha):
     return all_bt_location_records
 
 if __name__ == '__main__':
-    sim_threshold = 0.1
-    alpha = timedelta(seconds=60)
+    from const import ALPHA,SIM_THRESHOLD
 
     users = os.listdir(os.path.join(DATA_DIR, "uim_exp1_release"))
     for user in users:
@@ -329,7 +339,7 @@ if __name__ == '__main__':
         if path.exists(filepath):
             continue
 
-        records = classify_user_data(user, sim_threshold, alpha)
+        records = classify_user_data(user, SIM_THRESHOLD, ALPHA)
         with open(filepath, 'w') as f:
             for t,macs,loc in records:
                 f.write('%s %s %s\n' % (t.isoformat(), loc, ','.join(macs)))
