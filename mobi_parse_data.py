@@ -1,13 +1,13 @@
-
+import os
 import datetime as dt
 import random
+import networkx
 # import matplotlib as mpl
-# import matplotlib.pyplot as plt
-
-START_DT = dt.datetime(2009, 8, 17, 8) # 17/08/2009 08:00
+import matplotlib.pyplot as plt
+from const import *
 
 activity = {}
-with open(r"sigcomm2009\activity.csv") as activity_fd:
+with open(os.path.join(DATA_DIR, "mobiclique", "activity.csv")) as activity_fd:
     for line in activity_fd.readlines():
         line = line.strip()
         if "#" in line:
@@ -26,7 +26,7 @@ def is_awake(user_id, ts, activity):
     return False
 
 transmission = {}
-with open(r"sigcomm2009\transmission.csv") as transmission_fd:
+with open(os.path.join(DATA_DIR, "mobiclique", "transmission.csv")) as transmission_fd:
     for line in transmission_fd.readlines():
         line = line.strip()
         if "#" in line:
@@ -44,7 +44,7 @@ with open(r"sigcomm2009\transmission.csv") as transmission_fd:
         transmission[src_user_id][dst_user_id].append(ts)
     
 reception = {}
-with open(r"sigcomm2009\reception.csv") as reception_fd:
+with open(os.path.join(DATA_DIR, "mobiclique", "reception.csv")) as reception_fd:
     for line in reception_fd.readlines():
         line = line.strip()
         if "#" in line:
@@ -82,7 +82,7 @@ for (src_user_id, dst_user_id) in sorted(drift_dict):
 
             
 proximity = {}
-with open(r"sigcomm2009\proximity.csv") as proximity_fd:
+with open(os.path.join(DATA_DIR, "mobiclique", "proximity.csv")) as proximity_fd:
     for line in proximity_fd.readlines():
         line = line.strip()
         if "#" in line:
@@ -121,48 +121,85 @@ MAX_RNG = 75
 timestamps = sorted(proximity)
 
 #write traces to user.dat files
-user_fds = {}
-for ts in timestamps:
-    for (user_id, seen_id) in proximity[ts]:
-        if user_id not in user_fds:
-            fd = open(r"mobiclique\%s.dat" % user_id, 'w')
-            last_ts = -1
-            user_fds[user_id] = [fd, last_ts]
-        else:
-            [fd, last_ts] = user_fds[user_id]
-        if last_ts != ts:
-            if last_ts > 0:
-                fd.write('\n')
-            fd.write("{} {} {}".format(ts, user_id, seen_id))
-        else:
-            fd.write(",{}".format(seen_id))
-        user_fds[user_id][1] = ts
+if 0:
+    user_fds = {}
+    for ts in timestamps:
+        for (user_id, seen_id) in proximity[ts]:
+            if user_id not in user_fds:
+                fd = open(r"mobiclique\%s.dat" % user_id, 'w')
+                last_ts = -1
+                user_fds[user_id] = [fd, last_ts]
+            else:
+                [fd, last_ts] = user_fds[user_id]
+            if last_ts != ts:
+                if last_ts > 0:
+                    fd.write('\n')
+                fd.write("{} {} {}".format(ts, user_id, seen_id))
+            else:
+                fd.write(",{}".format(seen_id))
+            user_fds[user_id][1] = ts
 
-for (fd, last_ts) in user_fds.values():
-    fd.close()
+    for (fd, last_ts) in user_fds.values():
+        fd.close()
         
+# Graph using networkx
+if 1:
+    idx = random.sample(xrange(len(timestamps)), 25)
+    idx.sort()
+    sample_timestamps = map(timestamps.__getitem__, idx)
+    sample_dts = map(lambda ts: START_DT + dt.timedelta(seconds=ts),sample_timestamps)
+    for ts in sample_timestamps:
+        other_timestamps = filter(lambda x: abs(x-ts) < MAX_RNG, timestamps)
+        edges = sorted(set(reduce(list.__add__, [proximity[x] for x in other_timestamps])))
+        G = networkx.Graph(edges)
+        networkx.draw(G)
+        fig_fname = os.path.join(r"C:\Users\Jon\Google Drive\Grad_School\CS 538\project\scripts\figures", "%s.png" % ts)
+        plt.savefig(fig_fname)
+        plt.close()
+    networks = []
+    n_networks = []
+    max_size = []
+    
+    idx = random.sample(xrange(len(timestamps)), 1500)
+    idx.sort()
+    sample_timestamps = map(timestamps.__getitem__, idx)
+    sample_dts = map(lambda ts: START_DT + dt.timedelta(seconds=ts),sample_timestamps)
+    for ts in sample_timestamps:
+        other_timestamps = filter(lambda x: abs(x-ts) < MAX_RNG, timestamps)
+        edges = sorted(set(reduce(list.__add__, [proximity[x] for x in other_timestamps])))
+        nodes = sorted(set(reduce(list.__add__, map(list, edges))))
+        new_networks = get_networks(nodes, edges)
+        networks.append(new_networks)
+        n_networks.append(len(new_networks))
+        max_size.append(max(map(len,new_networks)))
 
-#
-networks = []
-n_networks = []
-max_size = []
+    fd = open("output2.csv", 'w')
+    for vals in zip(sample_dts, n_networks, max_size):
+        fd.write(','.join(map(str,(vals))))
+        fd.write('\n')
+    fd.close()
 
-idx = random.sample(xrange(len(timestamps)), 1500)
-idx.sort()
-sample_timestamps = map(timestamps.__getitem__, idx)
-sample_dts = map(lambda ts: START_DT + dt.timedelta(seconds=ts),sample_timestamps)
-for ts in sample_timestamps:
-    other_timestamps = filter(lambda x: abs(x-ts) < MAX_RNG, timestamps)
-    edges = sorted(set(reduce(list.__add__, [proximity[x] for x in other_timestamps])))
-    nodes = sorted(set(reduce(list.__add__, map(list, edges))))
-    new_networks = get_networks(nodes, edges)
-    networks.append(new_networks)
-    n_networks.append(len(new_networks))
-    max_size.append(max(map(len,new_networks)))
+# Get networks
+if 0:
+    networks = []
+    n_networks = []
+    max_size = []
+    
+    idx = random.sample(xrange(len(timestamps)), 1500)
+    idx.sort()
+    sample_timestamps = map(timestamps.__getitem__, idx)
+    sample_dts = map(lambda ts: START_DT + dt.timedelta(seconds=ts),sample_timestamps)
+    for ts in sample_timestamps:
+        other_timestamps = filter(lambda x: abs(x-ts) < MAX_RNG, timestamps)
+        edges = sorted(set(reduce(list.__add__, [proximity[x] for x in other_timestamps])))
+        nodes = sorted(set(reduce(list.__add__, map(list, edges))))
+        new_networks = get_networks(nodes, edges)
+        networks.append(new_networks)
+        n_networks.append(len(new_networks))
+        max_size.append(max(map(len,new_networks)))
 
-fd = open("output2.csv", 'w')
-for vals in zip(sample_dts, n_networks, max_size):
-    fd.write(','.join(map(str,(vals))))
-    fd.write('\n')
-
-fd.close()
+    fd = open("output2.csv", 'w')
+    for vals in zip(sample_dts, n_networks, max_size):
+        fd.write(','.join(map(str,(vals))))
+        fd.write('\n')
+    fd.close()
