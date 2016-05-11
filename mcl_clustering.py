@@ -9,6 +9,8 @@ import time
 from optparse import OptionParser
 import logging
 
+small = 1e-8
+
 def normalize(A):
     column_sums = A.sum(axis=0)
     new_matrix = A / column_sums[np.newaxis, :]
@@ -25,9 +27,9 @@ def add_diag(A, mult_factor):
 
 def get_clusters(A):
     clusters = []
-    for i, r in enumerate((A>0).tolist()):
+    for i, r in enumerate((A>small).tolist()):
         if r[i]:
-            clusters.append(A[i,:]>0)
+            clusters.append(A[i,:]>small)
 
     clust_map  ={}
     for cn , c in enumerate(clusters):
